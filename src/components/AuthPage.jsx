@@ -156,12 +156,16 @@ const AuthPage = ({ addToast }) => {
 	const handleSubmit = async (e) => {
 		e.preventDefault();
 
+		// Prevent double submission
+		if (loading) return;
+
 		if (!validateForm()) {
 			// Validation errors are already displayed inline, no need for toast
 			return;
 		}
 
 		setLoading(true);
+		clearError(); // Clear any previous errors
 
 		try {
 			let result;
@@ -181,7 +185,9 @@ const AuthPage = ({ addToast }) => {
 					result.message || `${isLogin ? "Login" : "Registration"} successful!`,
 					"success"
 				);
+				// Form will be unmounted after successful auth, so no need to setLoading(false)
 			} else {
+				// Show error but keep form accessible
 				addToast(result.error || "Something went wrong", "error");
 			}
 		} catch (err) {
@@ -257,18 +263,6 @@ const AuthPage = ({ addToast }) => {
 						animate={{ opacity: 1 }}
 						transition={{ delay: 0.4, duration: 0.5 }}
 					>
-						{/* Global Error Display */}
-						{error && (
-							<motion.div
-								className="error-message global-error"
-								initial={{ opacity: 0, y: -10 }}
-								animate={{ opacity: 1, y: 0 }}
-								exit={{ opacity: 0, y: -10 }}
-							>
-								<AlertCircle size={16} />
-								<span>{error}</span>
-							</motion.div>
-						)}
 
 						{!isLogin && (
 							<motion.div
@@ -476,20 +470,25 @@ const AuthPage = ({ addToast }) => {
 
 						<motion.button
 							type="submit"
-							className="btn btn-primary auth-submit"
+							className={`btn btn-primary auth-submit ${
+								loading ? "loading" : ""
+							}`}
 							disabled={loading}
 							initial={{ opacity: 0, y: 20 }}
 							animate={{ opacity: 1, y: 0 }}
 							transition={{ delay: isLogin ? 0.7 : 0.8, duration: 0.3 }}
-							whileHover={{ scale: 1.02 }}
-							whileTap={{ scale: 0.98 }}
+							whileHover={!loading ? { scale: 1.02 } : {}}
+							whileTap={!loading ? { scale: 0.98 } : {}}
 						>
 							{loading ? (
-								<div className="spinner" style={{ width: 20, height: 20 }} />
-							) : isLogin ? (
-								"Sign In"
+								<>
+									<div className="button-spinner" />
+									<span>
+										{isLogin ? "Signing In..." : "Creating Account..."}
+									</span>
+								</>
 							) : (
-								"Create Account"
+								<span>{isLogin ? "Sign In" : "Create Account"}</span>
 							)}
 						</motion.button>
 					</motion.form>

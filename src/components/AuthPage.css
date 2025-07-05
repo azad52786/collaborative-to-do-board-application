@@ -276,7 +276,6 @@
 
 /* Loading State Enhancements */
 .btn:disabled {
-  opacity: 0.6;
   cursor: not-allowed;
   transform: none;
 }
@@ -284,6 +283,65 @@
 .btn:disabled:hover {
   transform: none;
   box-shadow: var(--shadow);
+}
+
+.btn.loading {
+  position: relative;
+  background: var(--primary);
+  opacity: 0.8;
+  cursor: wait;
+}
+
+.btn.loading::before {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 20px;
+  height: 20px;
+  border: 2px solid transparent;
+  border-top: 2px solid var(--text-primary);
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+.button-spinner {
+  width: 18px;
+  height: 18px;
+  border: 2px solid transparent;
+  border-top: 2px solid currentColor;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+  margin-right: var(--space-xs);
+}
+
+.btn.loading span {
+  color: var(--text-primary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-xs);
+}
+
+/* Keep form interactive during loading */
+.auth-form {
+  transition: opacity 0.3s ease;
+}
+
+.auth-form.loading {
+  /* Form stays fully opaque and interactive */
+  opacity: 1;
+}
+
+.input-wrapper:focus-within {
+  /* Enhanced focus state during loading */
+  box-shadow: 0 0 0 3px rgba(var(--primary-rgb), 0.1);
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
 }
 
 /* Accessibility Improvements */

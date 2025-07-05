@@ -1,4 +1,10 @@
-import { createContext, useContext, useState, useEffect } from "react";
+import {
+	createContext,
+	useContext,
+	useState,
+	useEffect,
+	useCallback,
+} from "react";
 import axios from "axios";
 
 const AuthContext = createContext();
@@ -109,7 +115,7 @@ export const AuthProvider = ({ children }) => {
 
 	const login = async (email, password) => {
 		try {
-			setLoading(true);
+			// setLoading(true);
 			setError(null);
 
 			// Validate input
@@ -216,9 +222,9 @@ export const AuthProvider = ({ children }) => {
 		setError(null);
 	};
 
-	const clearError = () => {
+	const clearError = useCallback(() => {
 		setError(null);
-	};
+	}, []);
 
 	// Check if user is authenticated
 	const isAuthenticated = !!user;

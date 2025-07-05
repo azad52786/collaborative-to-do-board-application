@@ -32,16 +32,30 @@ app.use(express.json({ limit: '10mb' }));
 // MongoDB Connection
 const connectDB = async () => {
   try {
-    const mongoURI = process.env.MONGODB_URI || 'mongodb://collabboard_user:collabboard_password@localhost:27017/collabboard?authSource=collabboard';
+    // Use MongoDB Atlas URI from environment
+    const mongoURI = process.env.MONGODB_URI || 'mongodb+srv://azadkaji63:nRXmtQ0Qk8Y3AJIt@cluster0.yk6ah33.mongodb.net/collabboard?retryWrites=true&w=majority&appName=Cluster0';
     
-    await mongoose.connect(mongoURI, {
-      useNewUrlParser: true,
-      useUnifiedTopology: true,
-    });
+    console.log('🔄 Connecting to MongoDB Atlas...');
     
-    console.log('✅ MongoDB connected successfully');
+    await mongoose.connect(mongoURI);
+    console.log('✅ MongoDB Atlas connected successfully');
     
-    // Test the connection
+    // Test the connection and create default admin user
+    await createDefaultUser();
+    
+  } catch (error) {
+    console.error('❌ MongoDB Atlas connection error:', error.message);
+    console.log('💡 Please check:');
+    console.log('   1. Your internet connection');
+    console.log('   2. MongoDB Atlas credentials');
+    console.log('   3. IP whitelist in MongoDB Atlas');
+    process.exit(1);
+  }
+};
+
+// Helper function to create default user
+const createDefaultUser = async () => {
+  try {
     const adminUser = await User.findOne({ email: 'admin@collabboard.com' });
     if (!adminUser) {
       // Create default admin user
@@ -53,11 +67,12 @@ const connectDB = async () => {
         avatar: 'AD',
         isActive: true
       });
-      console.log('✅ Default admin user created');
+      console.log('✅ Default admin user created (admin@collabboard.com / admin123)');
+    } else {
+      console.log('✅ Default admin user exists');
     }
   } catch (error) {
-    console.error('❌ MongoDB connection error:', error.message);
-    process.exit(1);
+    console.log('⚠️  Could not create default user:', error.message);
   }
 };
 

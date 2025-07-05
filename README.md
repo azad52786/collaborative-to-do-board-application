@@ -1,6 +1,6 @@
-# CollabBoard - Real-time Collaborative Todo Board with MongoDB
+# CollabBoard - Real-time Collaborative Todo Board
 
-A modern, real-time collaborative todo board application with MongoDB, Docker, and user-specific access control.
+A modern, real-time collaborative todo board application with MongoDB Atlas, real-time updates, and user-specific access control.
 
 ## ✨ Features
 
@@ -28,6 +28,24 @@ A modern, real-time collaborative todo board application with MongoDB, Docker, a
 ### Prerequisites
 - Node.js (v16 or higher)
 - npm or yarn
+- MongoDB Atlas account (cloud database)
+
+### Environment Setup
+
+1. **Backend Environment Configuration**
+   Create a `.env` file in the `backend/` directory with the following variables:
+   ```env
+   JWT_SECRET=your-jwt-secret-key
+   MONGODB_URI=your-mongodb-atlas-connection-string
+   PORT=5000
+   NODE_ENV=development
+   ```
+
+2. **MongoDB Atlas Setup**
+   - Create a MongoDB Atlas account at https://cloud.mongodb.com
+   - Create a new cluster
+   - Get your connection string and replace `your-mongodb-atlas-connection-string` in the `.env` file
+   - Ensure your IP address is whitelisted in Atlas Network Access
 
 ### Installation
 
@@ -65,9 +83,9 @@ as1/
 │   │   ├── AuthPage.jsx     # Login/Registration page
 │   │   ├── Dashboard.jsx    # Main dashboard with Kanban board
 │   │   ├── TaskCard.jsx     # Individual task card component
-│   │   ├── ActivityPanel.jsx # Live activity sidebar
-│   │   ├── TaskModal.jsx    # Task creation/editing modal
-│   │   ├── ConflictModal.jsx # Conflict resolution modal
+│   │   ├── SortableTaskCard.jsx # Drag-and-drop task card
+│   │   ├── DroppableColumn.jsx  # Droppable column component
+│   │   ├── ProtectedRoute.jsx   # Route protection component
 │   │   └── Toast.jsx        # Notification toast component
 │   ├── context/             # React context providers
 │   │   ├── AuthContext.jsx  # Authentication context
@@ -77,6 +95,11 @@ as1/
 │   └── App.jsx              # Main app component
 ├── backend/                 # Node.js backend
 │   ├── server.js           # Express server with Socket.IO
+│   ├── models/             # MongoDB models
+│   │   ├── User.js         # User model with authentication
+│   │   ├── Task.js         # Task model for Kanban cards
+│   │   └── Activity.js     # Activity logging model
+│   ├── .env                # Environment variables
 │   └── package.json        # Backend dependencies
 └── README.md               # This file
 ```
@@ -113,6 +136,8 @@ as1/
 ### Backend
 - **Node.js** - JavaScript runtime
 - **Express** - Web application framework
+- **MongoDB Atlas** - Cloud NoSQL database
+- **Mongoose** - MongoDB object modeling
 - **Socket.IO** - Real-time bidirectional communication
 - **JWT** - JSON Web Token authentication
 - **bcryptjs** - Password hashing

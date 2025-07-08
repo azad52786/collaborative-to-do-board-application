@@ -206,6 +206,28 @@ const AuthPage = ({ addToast }) => {
 		return !!getFieldError(fieldName);
 	};
 
+	// Demo user login function
+	const handleDemoLogin = async (email, password) => {
+		if (loading) return;
+
+		setLoading(true);
+		clearError();
+
+		try {
+			const result = await login(email, password);
+			if (result.success) {
+				addToast(`Demo login successful! Welcome!`, "success");
+			} else {
+				addToast(result.error || "Demo login failed", "error");
+			}
+		} catch (err) {
+			console.error("Demo login error:", err);
+			addToast("Demo login failed. Please try again.", "error");
+		} finally {
+			setLoading(false);
+		}
+	};
+
 	return (
 		<div className="auth-page">
 			<div className="auth-background">
@@ -254,6 +276,45 @@ const AuthPage = ({ addToast }) => {
 								? "Sign in to your collaborative workspace"
 								: "Create your account to get started"}
 						</motion.p>
+
+						{/* Demo User Login Buttons */}
+						<motion.div
+							className="demo-view"
+							initial={{ opacity: 0 }}
+							animate={{ opacity: 1 }}
+							transition={{ delay: 0.4, duration: 0.3 }}
+						>
+							<div className="demo-header">
+								<h3>Demo View</h3>
+								<p className="text-muted">Quick login with demo accounts</p>
+							</div>
+							<div className="demo-buttons">
+								<motion.button
+									type="button"
+									className="demo-btn demo-student"
+									whileHover={{ scale: 1.02 }}
+									whileTap={{ scale: 0.98 }}
+									onClick={() =>
+										handleDemoLogin("alice.johnson@example.com", "Password123")
+									}
+									disabled={loading}
+								>
+									Alice (Task Creator)
+								</motion.button>
+								<motion.button
+									type="button"
+									className="demo-btn demo-teacher"
+									whileHover={{ scale: 1.02 }}
+									whileTap={{ scale: 0.98 }}
+									onClick={() =>
+										handleDemoLogin("bob@example.com", "Password123")
+									}
+									disabled={loading}
+								>
+									Bob (Task Assignee)
+								</motion.button>
+							</div>
+						</motion.div>
 					</div>
 
 					<motion.form
@@ -263,7 +324,6 @@ const AuthPage = ({ addToast }) => {
 						animate={{ opacity: 1 }}
 						transition={{ delay: 0.4, duration: 0.5 }}
 					>
-
 						{!isLogin && (
 							<motion.div
 								className="form-group"

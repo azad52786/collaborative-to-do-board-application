@@ -117,7 +117,7 @@ const authenticateToken = async (req, res, next) => {
   try {
     const authHeader = req.headers['authorization'];
     const token = authHeader && authHeader.split(' ')[1];
-
+    console.log(token)
     if (!token) {
       return res.status(401).json({ 
         error: 'Access token required',
@@ -457,6 +457,7 @@ app.get('/api/auth/me', authenticateToken, async (req, res) => {
 // Task Routes with User Access Control
 app.get('/api/tasks', authenticateToken, async (req, res) => {
   try {
+        
     // Get tasks that user created or is assigned to
     const tasks = await Task.getAccessibleTasks(req.user.id);
     
@@ -477,10 +478,11 @@ app.get('/api/tasks', authenticateToken, async (req, res) => {
   }
 });
 
+
 app.post('/api/tasks', authenticateToken, async (req, res) => {
   try {
     const { title, description, priority, assignedTo, dueDate } = req.body;
-
+    
     // Validate required fields
     if (!title || title.trim().length === 0) {
       return res.status(400).json({
@@ -724,6 +726,189 @@ app.get('/api/users', authenticateToken, async (req, res) => {
     res.status(500).json({
       error: 'Failed to fetch users',
       code: 'FETCH_USERS_FAILED'
+    });
+  }
+});
+
+// Seeder endpoint to create sample users and tasks
+app.post('/api/seed', async (req, res) => {
+  try {
+    console.log('🌱 Starting database seeding...');
+    
+    // Sample users data
+    const sampleUsers = [
+      {
+        name: 'Alice Johnson',
+        email: 'alice@example.com',
+        password: 'Password123',
+        avatar: 'AJ'
+      },
+      {
+        name: 'Bob Smith',
+        email: 'bob@example.com',
+        password: 'Password123',
+        avatar: 'BS'
+      },
+      {
+        name: 'Charlie Brown',
+        email: 'charlie@example.com',
+        password: 'Password123',
+        avatar: 'CB'
+      },
+      {
+        name: 'Diana Prince',
+        email: 'diana@example.com',
+        password: 'Password123',
+        avatar: 'DP'
+      },
+      {
+        name: 'Eve Wilson',
+        email: 'eve@example.com',
+        password: 'Password123',
+        avatar: 'EW'
+      }
+    ];
+
+    // Create users (skip if already exists)
+    const createdUsers = [];
+    for (const userData of sampleUsers) {
+      const existingUser = await User.findOne({ email: userData.email });
+      if (!existingUser) {
+        const hashedPassword = await bcrypt.hash(userData.password, 10);
+        const user = await User.create({
+          ...userData,
+          password: hashedPassword,
+          isActive: true
+        });
+        createdUsers.push(user);
+        console.log(`✅ Created user: ${user.name} (${user.email})`);
+      } else {
+        createdUsers.push(existingUser);
+        console.log(`ℹ️  User already exists: ${existingUser.name} (${existingUser.email})`);
+      }
+    }
+
+    // Get all users for task assignment
+    const allUsers = await User.find({ isActive: true });
+    
+    // Sample tasks with assignments
+    const sampleTasks = [
+      {
+        title: 'Setup Project Infrastructure',
+        description: 'Initialize the project with proper folder structure and dependencies',
+        priority: 'high',
+        status: 'todo',
+        createdBy: allUsers[0]._id,
+        assignedTo: allUsers[1]._id, // Alice creates, Bob gets assigned
+      },
+      {
+        title: 'Design User Interface',
+        description: 'Create wireframes and mockups for the main dashboard',
+        priority: 'medium',
+        status: 'inProgress',
+        createdBy: allUsers[1]._id,
+        assignedTo: allUsers[2]._id, // Bob creates, Charlie gets assigned
+      },
+      {
+        title: 'Implement Authentication',
+        description: 'Add login/register functionality with JWT tokens',
+        priority: 'high',
+        status: 'done',
+        createdBy: allUsers[2]._id,
+        assignedTo: allUsers[3]._id, // Charlie creates, Diana gets assigned
+      },
+      {
+        title: 'Database Schema Design',
+        description: 'Design and implement the database schema for all entities',
+        priority: 'high',
+        status: 'todo',
+        createdBy: allUsers[3]._id,
+        assignedTo: allUsers[4]._id, // Diana creates, Eve gets assigned
+      },
+      {
+        title: 'API Documentation',
+        description: 'Document all API endpoints with proper examples',
+        priority: 'medium',
+        status: 'inProgress',
+        createdBy: allUsers[4]._id,
+        assignedTo: allUsers[0]._id, // Eve creates, Alice gets assigned
+      },
+      {
+        title: 'Unit Testing',
+        description: 'Write comprehensive unit tests for all components',
+        priority: 'medium',
+        status: 'todo',
+        createdBy: allUsers[0]._id,
+        assignedTo: allUsers[1]._id, // Alice creates, Bob gets assigned
+      },
+      {
+        title: 'Security Audit',
+        description: 'Perform security audit and fix vulnerabilities',
+        priority: 'high',
+        status: 'todo',
+        createdBy: allUsers[1]._id,
+        assignedTo: allUsers[2]._id, // Bob creates, Charlie gets assigned
+      },
+      {
+        title: 'Performance Optimization',
+        description: 'Optimize database queries and frontend performance',
+        priority: 'medium',
+        status: 'inProgress',
+        createdBy: allUsers[2]._id,
+        assignedTo: allUsers[3]._id, // Charlie creates, Diana gets assigned
+      }
+    ];
+
+    // Create tasks
+    const createdTasks = [];
+    for (const taskData of sampleTasks) {
+      const existingTask = await Task.findOne({ title: taskData.title });
+      if (!existingTask) {
+        const task = await Task.create(taskData);
+        await task.populate('createdBy assignedTo', 'name email avatar');
+        createdTasks.push(task);
+        console.log(`✅ Created task: "${task.title}" (${task.createdBy.name} → ${task.assignedTo.name})`);
+      } else {
+        console.log(`ℹ️  Task already exists: "${existingTask.title}"`);
+      }
+    }
+
+    // Create activity logs for task assignments
+    for (const task of createdTasks) {
+      await Activity.create({
+        user: task.createdBy._id,
+        action: 'created',
+        taskId: task._id,
+        taskTitle: task.title,
+        details: {
+          assignedUser: task.assignedTo._id
+        }
+      });
+    }
+
+    res.json({
+      success: true,
+      message: 'Database seeded successfully',
+      data: {
+        users: createdUsers.length,
+        tasks: createdTasks.length,
+        usersList: allUsers.map(u => ({ name: u.name, email: u.email })),
+        tasksList: createdTasks.map(t => ({ 
+          title: t.title, 
+          creator: t.createdBy.name, 
+          assignedTo: t.assignedTo.name,
+          status: t.status 
+        }))
+      }
+    });
+
+    console.log('🌱 Database seeding completed successfully!');
+  } catch (error) {
+    console.error('❌ Seeding error:', error);
+    res.status(500).json({
+      error: 'Failed to seed database',
+      code: 'SEEDING_FAILED',
+      details: error.message
     });
   }
 });

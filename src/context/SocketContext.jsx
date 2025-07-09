@@ -19,37 +19,60 @@ export const SocketProvider = ({ children }) => {
 
 	useEffect(() => {
 		if (user) {
-			// Mock socket connection - replace with actual Socket.IO connection
-			const mockSocket = {
-				emit: (event, data) => {
-					console.log("Socket emit:", event, data);
-				},
-				on: (event, callback) => {
-					console.log("Socket listener added:", event);
-					// Mock some events for demonstration
-					if (event === "connect") {
-						setTimeout(() => callback(), 100);
-					}
-				},
-				off: (event, _callback) => {
-					console.log("Socket listener removed:", event);
-				},
-				disconnect: () => {
-					console.log("Socket disconnected");
-					setIsConnected(false);
-				},
-			};
+			// Create real Socket.IO connection
+			const socketConnection = io(
+				import.meta.env.VITE_SOCKET_URL || "http://localhost:3001",
+				{
+					auth: {
+						userId: user.id,
+						userName: user.name,
+					},
+					transports: ["websocket", "polling"],
+					timeout: 20000,
+				}
+			);
 
-			setSocket(mockSocket);
-			setIsConnected(true);
+			// Connection event handlers
+			socketConnection.on("connect", () => {
+				console.log("✅ Socket connected:", socketConnection.id);
+				console.log(
+					"🔗 Connected to:",
+					import.meta.env.VITE_SOCKET_URL || "http://localhost:3001"
+				);
+				setIsConnected(true);
+			});
+
+			socketConnection.on("disconnect", (reason) => {
+				console.log("❌ Socket disconnected:", reason);
+				setIsConnected(false);
+			});
+
+			socketConnection.on("connect_error", (error) => {
+				console.error("🚫 Socket connection error:", error);
+				console.error(
+					"Attempted to connect to:",
+					import.meta.env.VITE_SOCKET_URL || "http://localhost:3001"
+				);
+				setIsConnected(false);
+			});
+
+			setSocket(socketConnection);
 
 			return () => {
-				if (mockSocket) {
-					mockSocket.disconnect();
-				}
+				console.log("Cleaning up socket connection");
+				socketConnection.disconnect();
+				setSocket(null);
+				setIsConnected(false);
 			};
+		} else {
+			// User logged out, clean up socket
+			if (socket) {
+				socket.disconnect();
+				setSocket(null);
+				setIsConnected(false);
+			}
 		}
-	}, [user]);
+	}, [user]); // socket is not needed in deps as it's set inside the effect
 
 	const value = {
 		socket,

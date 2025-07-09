@@ -2,7 +2,13 @@ import { motion } from "framer-motion";
 import { Zap, Clock, User, MoreHorizontal } from "lucide-react";
 import "./TaskCard.css";
 
-const TaskCard = ({ task, onSmartAssign, onClick, isDragging }) => {
+const TaskCard = ({
+	task,
+	onSmartAssign,
+	onClick,
+	isDragging,
+	className = "",
+}) => {
 	const getPriorityColor = (priority) => {
 		switch (priority) {
 			case "high":
@@ -26,9 +32,13 @@ const TaskCard = ({ task, onSmartAssign, onClick, isDragging }) => {
 	// Use regular div when dragging to avoid conflicts
 	const CardComponent = isDragging ? "div" : motion.div;
 	const cardProps = isDragging
-		? { className: "task-card" }
+		? {
+				className: `task-card ${className}`,
+				"data-task-id": task._id || task.id,
+		  }
 		: {
-				className: "task-card",
+				className: `task-card ${className}`,
+				"data-task-id": task._id || task.id,
 				whileHover: { y: -2, scale: 1.02 },
 				whileTap: { scale: 0.98 },
 				transition: { duration: 0.2 },

@@ -4,7 +4,6 @@ import "./ConflictModal.css";
 
 const ConflictModal = ({ conflictData, onClose, onResolve }) => {
 	if (!conflictData) return null;
-
 	const { task, localVersion, remoteVersion, user } = conflictData;
 
 	const handleResolve = (resolution) => {

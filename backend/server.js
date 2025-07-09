@@ -41,7 +41,7 @@ app.use(express.json({ limit: '10mb' }));
 const connectDB = async () => {
   try {
     // Use MongoDB Atlas URI from environment
-    const mongoURI = process.env.MONGODB_URI || 'mongodb+srv://azadkaji63:nRXmtQ0Qk8Y3AJIt@cluster0.yk6ah33.mongodb.net/collabboard?retryWrites=true&w=majority&appName=Cluster0';
+    const mongoURI = process.env.MONGODB_URI || 'data-base-url';
     
     console.log('🔄 Connecting to MongoDB Atlas...');
     

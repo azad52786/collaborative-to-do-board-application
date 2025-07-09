@@ -21,7 +21,7 @@ export const SocketProvider = ({ children }) => {
 		if (user) {
 			// Create real Socket.IO connection
 			const socketConnection = io(
-				import.meta.env.VITE_SOCKET_URL || "http://localhost:3001",
+					"https://collaborative-to-do-board-application.onrender.com",
 				{
 					auth: {
 						userId: user.id,
@@ -35,10 +35,6 @@ export const SocketProvider = ({ children }) => {
 			// Connection event handlers
 			socketConnection.on("connect", () => {
 				console.log("✅ Socket connected:", socketConnection.id);
-				console.log(
-					"🔗 Connected to:",
-					import.meta.env.VITE_SOCKET_URL || "http://localhost:3001"
-				);
 				setIsConnected(true);
 			});
 
@@ -49,10 +45,6 @@ export const SocketProvider = ({ children }) => {
 
 			socketConnection.on("connect_error", (error) => {
 				console.error("🚫 Socket connection error:", error);
-				console.error(
-					"Attempted to connect to:",
-					import.meta.env.VITE_SOCKET_URL || "http://localhost:3001"
-				);
 				setIsConnected(false);
 			});
 

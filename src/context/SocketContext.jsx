@@ -37,8 +37,7 @@ export const SocketProvider = ({ children }) => {
 				console.log("✅ Socket connected:", socketConnection.id);
 				console.log(
 					"🔗 Connected to:",
-					import.meta.env.VITE_SOCKET_URL ||
-						"https://collaborative-to-do-board-application.onrender.com"
+					import.meta.env.VITE_SOCKET_URL || "http://localhost:3001"
 				);
 				setIsConnected(true);
 			});
@@ -52,8 +51,7 @@ export const SocketProvider = ({ children }) => {
 				console.error("🚫 Socket connection error:", error);
 				console.error(
 					"Attempted to connect to:",
-					import.meta.env.VITE_SOCKET_URL ||
-						"https://collaborative-to-do-board-application.onrender.com"
+					import.meta.env.VITE_SOCKET_URL || "http://localhost:3001"
 				);
 				setIsConnected(false);
 			});

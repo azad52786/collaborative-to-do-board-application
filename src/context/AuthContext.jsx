@@ -10,8 +10,7 @@ import axios from "axios";
 const AuthContext = createContext();
 
 // API Base URL
-const API_BASE_URL =
-	"https://collaborative-to-do-board-application.onrender.com/api";
+const API_BASE_URL = "http://localhost:3001/api";
 
 // Configure axios defaults
 axios.defaults.baseURL = API_BASE_URL;

@@ -32,15 +32,18 @@ const ActivityPanel = ({ activities }) => {
 	};
 
 	const formatActivity = (activity) => {
+		const taskName = activity.taskTitle || activity.task || "a task";
 		switch (activity.action) {
 			case "created":
-				return `created "${activity.task}"`;
+				return `created "${taskName}"`;
 			case "updated":
-				return `updated "${activity.task}"`;
+				return `updated "${taskName}"`;
 			case "moved":
-				return `moved "${activity.task}" from ${activity.from} to ${activity.to}`;
+				return `moved "${taskName}" from ${
+					activity.details?.from || activity.from
+				} to ${activity.details?.to || activity.to}`;
 			default:
-				return `performed an action on "${activity.task}"`;
+				return `performed an action on "${taskName}"`;
 		}
 	};
 
@@ -75,7 +78,12 @@ const ActivityPanel = ({ activities }) => {
 
 								<div className="activity-content">
 									<div className="activity-text">
-										<span className="user-name">{activity.user}</span>
+										<span className="user-name">
+											{activity.userDetails?.name ||
+												activity.user?.name ||
+												activity.user ||
+												"Someone"}
+										</span>
 										<span className="activity-description">
 											{formatActivity(activity)}
 										</span>

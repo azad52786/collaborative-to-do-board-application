@@ -10,7 +10,8 @@ import axios from "axios";
 const AuthContext = createContext();
 
 // API Base URL
-const API_BASE_URL = "http://localhost:3001/api";
+const API_BASE_URL =
+	import.meta.env.VITE_API_URL || "http://localhost:3001/api";
 
 // Configure axios defaults
 axios.defaults.baseURL = API_BASE_URL;

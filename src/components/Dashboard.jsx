@@ -347,6 +347,15 @@ const Dashboard = ({ addToast }) => {
 				await fetchTasks();
 				await fetchActivities();
 				addToast(`Created new task: ${response.task.title}`, "success");
+
+				// Emit socket event for real-time updates
+				if (socket) {
+					socket.emit("taskCreated", {
+						task: response.task,
+						user: user.name,
+						userId: user.id,
+					});
+				}
 			}
 		} catch (error) {
 			console.error("Failed to create task:", error);
@@ -371,6 +380,15 @@ const Dashboard = ({ addToast }) => {
 				await fetchTasks();
 				await fetchActivities();
 				addToast(`Updated task: ${response.task.title}`, "success");
+
+				// Emit socket event for real-time updates
+				if (socket) {
+					socket.emit("taskUpdated", {
+						task: response.task,
+						user: user.name,
+						userId: user.id,
+					});
+				}
 			}
 		} catch (error) {
 			console.error("Failed to update task:", error);
@@ -443,9 +461,13 @@ const Dashboard = ({ addToast }) => {
 			if (socket) {
 				socket.emit("taskMoved", {
 					taskId: taskId,
+					taskTitle: task.title,
 					from: fromContainer,
 					to: toContainer,
+					fromTitle: columns.find((col) => col.id === fromContainer)?.title,
+					toTitle: columns.find((col) => col.id === toContainer)?.title,
 					user: user.name,
+					userId: user.id,
 				});
 			}
 		} catch (error) {
@@ -477,10 +499,152 @@ const Dashboard = ({ addToast }) => {
 
 	useEffect(() => {
 		if (socket) {
+			// Listen for task updates from other users
 			socket.on("taskUpdated", (data) => {
+				console.log("Received taskUpdated:", data);
+
+				// Don't process our own events
+				if (data.userId === user.id) {
+					console.log("Ignoring own taskUpdated event");
+					return;
+				}
+
 				addToast(`${data.user} updated a task`, "info");
-				// Refresh tasks when receiving real-time updates
-				fetchTasks();
+
+				// Update tasks state immediately for real-time sync
+				if (data.task) {
+					setTasks((prevTasks) => {
+						const updatedTasks = { ...prevTasks };
+						const taskStatus = data.task.status;
+
+						// Find and update the task in the correct column
+						if (updatedTasks[taskStatus]) {
+							const taskIndex = updatedTasks[taskStatus].findIndex(
+								(task) => task._id === data.task._id
+							);
+							if (taskIndex >= 0) {
+								updatedTasks[taskStatus][taskIndex] = data.task;
+							} else {
+								// Task might have moved columns, remove from all and add to correct one
+								Object.keys(updatedTasks).forEach((status) => {
+									updatedTasks[status] = updatedTasks[status].filter(
+										(task) => task._id !== data.task._id
+									);
+								});
+								updatedTasks[taskStatus] = [
+									...updatedTasks[taskStatus],
+									data.task,
+								];
+							}
+						}
+						return updatedTasks;
+					});
+				} else {
+					// Fallback: refresh tasks when receiving real-time updates
+					fetchTasks();
+				}
+				fetchActivities();
+			});
+
+			// Listen for task moves from other users
+			socket.on("taskMoved", (data) => {
+				console.log("Received taskMoved:", data);
+
+				// Don't process our own events
+				if (data.userId === user.id) {
+					console.log("Ignoring own taskMoved event");
+					return;
+				}
+
+				addToast(
+					`${data.user} moved "${data.taskTitle}" to ${data.toTitle}`,
+					"info"
+				);
+
+				// Update tasks state immediately for real-time sync
+				if (data.task) {
+					setTasks((prevTasks) => {
+						const updatedTasks = { ...prevTasks };
+						// Remove task from all columns
+						Object.keys(updatedTasks).forEach((status) => {
+							updatedTasks[status] = updatedTasks[status].filter(
+								(task) => task._id !== data.taskId
+							);
+						});
+						// Add task to new column
+						if (updatedTasks[data.to]) {
+							updatedTasks[data.to] = [...updatedTasks[data.to], data.task];
+						}
+						return updatedTasks;
+					});
+				} else {
+					// Fallback: refresh tasks to show the latest state
+					fetchTasks();
+				}
+				fetchActivities();
+			});
+
+			// Listen for new task creation from other users
+			socket.on("taskCreated", (data) => {
+				console.log("Received taskCreated:", data);
+
+				// Don't process our own events
+				if (data.userId === user.id) {
+					console.log("Ignoring own taskCreated event");
+					return;
+				}
+
+				addToast(`${data.user} created a new task`, "info");
+
+				// Add new task to tasks state immediately for real-time sync
+				if (data.task) {
+					setTasks((prevTasks) => {
+						const updatedTasks = { ...prevTasks };
+						const taskStatus = data.task.status || "todo";
+
+						if (updatedTasks[taskStatus]) {
+							updatedTasks[taskStatus] = [
+								...updatedTasks[taskStatus],
+								data.task,
+							];
+						}
+						return updatedTasks;
+					});
+				} else {
+					// Fallback: refresh tasks to show the new task
+					fetchTasks();
+				}
+				fetchActivities();
+			});
+
+			// Listen for task deletion from other users
+			socket.on("taskDeleted", (data) => {
+				console.log("Received taskDeleted:", data);
+
+				// Don't process our own events
+				if (data.userId === user.id) {
+					console.log("Ignoring own taskDeleted event");
+					return;
+				}
+
+				addToast(`${data.user} deleted a task`, "info");
+
+				// Remove task from tasks state immediately for real-time sync
+				if (data.taskId) {
+					setTasks((prevTasks) => {
+						const updatedTasks = { ...prevTasks };
+						// Remove task from all columns
+						Object.keys(updatedTasks).forEach((status) => {
+							updatedTasks[status] = updatedTasks[status].filter(
+								(task) => task._id !== data.taskId
+							);
+						});
+						return updatedTasks;
+					});
+				} else {
+					// Fallback: refresh tasks to remove the deleted task
+					fetchTasks();
+				}
 				fetchActivities();
 			});
 
@@ -491,10 +655,13 @@ const Dashboard = ({ addToast }) => {
 
 			return () => {
 				socket.off("taskUpdated");
+				socket.off("taskMoved");
+				socket.off("taskCreated");
+				socket.off("taskDeleted");
 				socket.off("conflictDetected");
 			};
 		}
-	}, [socket, addToast, fetchTasks, fetchActivities]);
+	}, [socket, addToast, fetchTasks, fetchActivities, user.id]);
 
 	// Show loading state
 	if (loading) {

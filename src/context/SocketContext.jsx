@@ -21,6 +21,7 @@ export const SocketProvider = ({ children }) => {
 		if (user) {
 			// Create real Socket.IO connection
 			const socketConnection = io(
+				import.meta.env.VITE_SOCKET_URL ||
 					"https://collaborative-to-do-board-application.onrender.com",
 				{
 					auth: {

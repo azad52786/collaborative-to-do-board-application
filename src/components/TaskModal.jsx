@@ -3,7 +3,8 @@ import { motion } from "framer-motion";
 import { X, User, Calendar, Flag } from "lucide-react";
 import "./TaskModal.css";
 
-const API_BASE_URL = "http://localhost:3001/api";
+const API_BASE_URL =
+	"https://collaborative-to-do-board-application.onrender.com/api";
 
 const TaskModal = ({ task, onClose, onSave }) => {
 	const [users, setUsers] = useState([]);

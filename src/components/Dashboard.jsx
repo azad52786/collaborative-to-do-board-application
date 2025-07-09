@@ -29,7 +29,8 @@ import TaskModal from "./TaskModal";
 import ConflictModal from "./ConflictModal";
 import "./Dashboard.css";
 
-const API_BASE_URL = "http://localhost:3001/api";
+const API_BASE_URL =
+	"https://collaborative-to-do-board-application.onrender.com/api";
 
 const Dashboard = ({ addToast }) => {
 	const { user, logout } = useAuth();

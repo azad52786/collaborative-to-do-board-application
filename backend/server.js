@@ -16,7 +16,11 @@ const app = express();
 const server = http.createServer(app);
 const io = socketIo(server, {
   cors: {
-    origin: process.env.FRONTEND_URL || "http://localhost:5173",
+    origin: [
+      process.env.FRONTEND_URL || "http://localhost:5173",
+      "http://localhost:5174",
+      "http://localhost:5175"
+    ],
     methods: ["GET", "POST", "PUT", "DELETE"],
     credentials: true
   }
@@ -24,7 +28,11 @@ const io = socketIo(server, {
 
 // Middleware
 app.use(cors({
-  origin: process.env.FRONTEND_URL || "http://localhost:5173",
+  origin: [
+    process.env.FRONTEND_URL || "http://localhost:5173",
+    "http://localhost:5174", 
+    "http://localhost:5175"
+  ],
   credentials: true
 }));
 app.use(express.json({ limit: '10mb' }));
@@ -233,6 +241,16 @@ const validateLogin = (req, res, next) => {
   }
 
   next();
+};
+
+// Helper function to get column titles
+const getColumnTitle = (status) => {
+  const columnTitles = {
+    'todo': 'To Do',
+    'inProgress': 'In Progress',
+    'done': 'Done'
+  };
+  return columnTitles[status] || status;
 };
 
 // Routes
@@ -457,7 +475,6 @@ app.get('/api/auth/me', authenticateToken, async (req, res) => {
 // Task Routes with User Access Control
 app.get('/api/tasks', authenticateToken, async (req, res) => {
   try {
-        
     // Get tasks that user created or is assigned to
     const tasks = await Task.getAccessibleTasks(req.user.id);
     
@@ -478,11 +495,11 @@ app.get('/api/tasks', authenticateToken, async (req, res) => {
   }
 });
 
-
 app.post('/api/tasks', authenticateToken, async (req, res) => {
   try {
     const { title, description, priority, assignedTo, dueDate } = req.body;
-    
+
+    console.log(title + " " + description + " " + assignedTo + dueDate);
     // Validate required fields
     if (!title || title.trim().length === 0) {
       return res.status(400).json({
@@ -532,7 +549,8 @@ app.post('/api/tasks', authenticateToken, async (req, res) => {
     // Emit to all clients
     io.emit('taskCreated', { 
       task: newTask.toJSON(),
-      user: req.userDoc.name
+      user: req.userDoc.name,
+      userId: req.user.id
     });
 
     res.status(201).json({
@@ -623,13 +641,30 @@ app.put('/api/tasks/:taskId', authenticateToken, async (req, res) => {
 
     await Activity.create(activityData);
 
-    // Emit to all clients
-    io.emit('taskUpdated', {
-      task: task.toJSON(),
-      user: req.userDoc.name,
-      action: activityData.action,
-      details: activityData.details
-    });
+    // Emit specific events based on action type
+    if (activityData.action === 'moved') {
+      // Task was moved between columns
+      io.emit('taskMoved', {
+        taskId: task._id,
+        taskTitle: task.title,
+        from: activityData.details.from,
+        to: activityData.details.to,
+        fromTitle: getColumnTitle(activityData.details.from),
+        toTitle: getColumnTitle(activityData.details.to),
+        user: req.userDoc.name,
+        userId: req.user.id,
+        task: task.toJSON()
+      });
+    } else {
+      // Task was updated
+      io.emit('taskUpdated', {
+        task: task.toJSON(),
+        user: req.userDoc.name,
+        userId: req.user.id,
+        action: activityData.action,
+        details: activityData.details
+      });
+    }
 
     res.json({
       success: true,
@@ -679,7 +714,8 @@ app.delete('/api/tasks/:taskId', authenticateToken, async (req, res) => {
     // Emit to all clients
     io.emit('taskDeleted', {
       taskId: taskId,
-      user: req.userDoc.name
+      user: req.userDoc.name,
+      userId: req.user.id
     });
 
     res.json({
@@ -919,45 +955,67 @@ io.on('connection', (socket) => {
 
   socket.on('taskMoved', async (data) => {
     try {
-      console.log('Task moved:', data);
+      console.log('Task moved via socket:', data);
       
-      const { taskId, fromStatus, toStatus, userId } = data;
+      const { taskId, from, to, user, userId } = data;
       
-      // Update task in database
-      const task = await Task.findById(taskId);
-      if (task && task.canAccess(userId)) {
-        task.status = toStatus;
-        await task.save();
-        
-        // Create activity
-        await Activity.create({
-          user: userId,
-          action: 'moved',
-          taskId: task._id,
-          taskTitle: task.title,
-          details: {
-            from: fromStatus,
-            to: toStatus
-          }
-        });
-      }
-      
-      // Broadcast to all clients
-      socket.broadcast.emit('taskUpdated', {
-        ...data,
+      // Broadcast to all OTHER clients (not the sender)
+      socket.broadcast.emit('taskMoved', {
+        taskId,
+        taskTitle: data.taskTitle,
+        from,
+        to,
+        fromTitle: data.fromTitle,
+        toTitle: data.toTitle,
+        user,
+        userId,
         timestamp: new Date().toISOString()
       });
+      
+      console.log(`Broadcasted taskMoved: ${data.taskTitle} from ${data.fromTitle} to ${data.toTitle} by ${user}`);
     } catch (error) {
-      console.error('Task moved error:', error);
+      console.error('Task moved socket error:', error);
+    }
+  });
+
+  socket.on('taskCreated', async (data) => {
+    try {
+      console.log('Task created via socket:', data);
+      
+      const { task, user, userId } = data;
+      
+      // Broadcast to all OTHER clients (not the sender)
+      socket.broadcast.emit('taskCreated', {
+        task,
+        user,
+        userId,
+        timestamp: new Date().toISOString()
+      });
+      
+      console.log(`Broadcasted taskCreated: ${task.title} by ${user}`);
+    } catch (error) {
+      console.error('Task created socket error:', error);
     }
   });
 
   socket.on('taskUpdated', async (data) => {
     try {
-      console.log('Task updated:', data);
+      console.log('Task updated via socket:', data);
       
-      // Simulate conflict detection (for demo)
-      if (Math.random() < 0.1) { // 10% chance of conflict
+      const { task, user, userId } = data;
+      
+      // Broadcast to all OTHER clients (not the sender)
+      socket.broadcast.emit('taskUpdated', {
+        task,
+        user,
+        userId,
+        timestamp: new Date().toISOString()
+      });
+      
+      console.log(`Broadcasted taskUpdated: ${task.title} by ${user}`);
+      
+      // Simulate conflict detection (for demo) - reduced chance
+      if (Math.random() < 0.05) { // 5% chance of conflict
         const randomTask = await Task.findOne().limit(1);
         if (randomTask) {
           socket.emit('conflictDetected', {
@@ -978,13 +1036,28 @@ io.on('connection', (socket) => {
           });
         }
       }
+    } catch (error) {
+      console.error('Task updated socket error:', error);
+    }
+  });
 
-      socket.broadcast.emit('taskUpdated', {
-        ...data,
+  socket.on('taskDeleted', async (data) => {
+    try {
+      console.log('Task deleted via socket:', data);
+      
+      const { taskId, user, userId } = data;
+      
+      // Broadcast to all OTHER clients (not the sender)
+      socket.broadcast.emit('taskDeleted', {
+        taskId,
+        user,
+        userId,
         timestamp: new Date().toISOString()
       });
+      
+      console.log(`Broadcasted taskDeleted: ${taskId} by ${user}`);
     } catch (error) {
-      console.error('Task updated error:', error);
+      console.error('Task deleted socket error:', error);
     }
   });
 

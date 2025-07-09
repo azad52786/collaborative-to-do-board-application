@@ -10,7 +10,7 @@ const SortableTaskCard = ({ task, onSmartAssign, onClick, isMoving }) => {
 		transform,
 		transition,
 		isDragging,
-	} = useSortable({ id: task.id });
+	} = useSortable({ id: task._id || task.id });
 
 	const style = {
 		transform: CSS.Transform.toString(transform),

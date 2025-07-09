@@ -30,7 +30,7 @@ const activitySchema = new mongoose.Schema({
     from: String,
     to: String,
     field: String,
-    oldValue: mongoose.Schema.Types.Mixed,
+    oldValue: mongoose.Schema.Types.Mixed, // Mixed type: Can store any data type (string, number, date, etc.)
     newValue: mongoose.Schema.Types.Mixed,
     assignedUser: {
       type: mongoose.Schema.Types.ObjectId,

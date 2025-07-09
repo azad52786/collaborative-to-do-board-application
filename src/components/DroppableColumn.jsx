@@ -70,16 +70,16 @@ const DroppableColumn = ({
 				style={{ minHeight: "500px", position: "relative" }}
 			>
 				<SortableContext
-					items={tasks.map((task) => task.id)}
+					items={tasks.map((task) => task._id || task.id)}
 					strategy={verticalListSortingStrategy}
 				>
 					{tasks.map((task) => (
 						<SortableTaskCard
-							key={task.id}
+							key={task._id || task.id}
 							task={task}
-							onSmartAssign={() => onSmartAssign(task.id)}
+							onSmartAssign={() => onSmartAssign(task._id || task.id)}
 							onClick={() => onTaskClick(task)}
-							isMoving={movingTaskId === task.id}
+							isMoving={movingTaskId === (task._id || task.id)}
 						/>
 					))}
 				</SortableContext>

@@ -299,7 +299,7 @@ const AuthPage = ({ addToast }) => {
 									}
 									disabled={loading}
 								>
-									Alice (Task Creator)
+									Log In Demo User1
 								</motion.button>
 								<motion.button
 									type="button"
@@ -311,7 +311,7 @@ const AuthPage = ({ addToast }) => {
 									}
 									disabled={loading}
 								>
-									Bob (Task Assignee)
+									Log In Demo User2
 								</motion.button>
 							</div>
 						</motion.div>

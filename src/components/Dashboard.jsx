@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
 	DndContext,
@@ -29,90 +29,151 @@ import TaskModal from "./TaskModal";
 import ConflictModal from "./ConflictModal";
 import "./Dashboard.css";
 
+const API_BASE_URL = "http://localhost:3001/api";
+
 const Dashboard = ({ addToast }) => {
 	const { user, logout } = useAuth();
 	const { socket, isConnected } = useSocket();
 
+	// Get token from localStorage
+	const token = localStorage.getItem("token");
+
 	const [tasks, setTasks] = useState({
-		todo: [
-			{
-				id: "1",
-				title: "Setup Authentication",
-				description: "Implement JWT-based authentication system",
-				assignedTo: { name: "John Doe", avatar: "JD" },
-				priority: "high",
-				createdAt: new Date().toISOString(),
-			},
-			{
-				id: "2",
-				title: "Design Database Schema",
-				description: "Create MongoDB schema for tasks and users",
-				assignedTo: { name: "Jane Smith", avatar: "JS" },
-				priority: "medium",
-				createdAt: new Date().toISOString(),
-			},
-		],
-		inProgress: [
-			{
-				id: "3",
-				title: "Build Kanban Board",
-				description: "Create drag-and-drop functionality",
-				assignedTo: { name: "Bob Wilson", avatar: "BW" },
-				priority: "high",
-				createdAt: new Date().toISOString(),
-			},
-		],
-		done: [
-			{
-				id: "4",
-				title: "Project Setup",
-				description: "Initialize React app with Vite",
-				assignedTo: { name: "Alice Brown", avatar: "AB" },
-				priority: "low",
-				createdAt: new Date().toISOString(),
-			},
-		],
+		todo: [],
+		inProgress: [],
+		done: [],
 	});
 
-	const [activities, setActivities] = useState([
-		{
-			id: "1",
-			user: "John Doe",
-			action: "moved",
-			task: "Setup Authentication",
-			from: "Todo",
-			to: "In Progress",
-			timestamp: new Date(Date.now() - 5 * 60000).toISOString(),
-		},
-		{
-			id: "2",
-			user: "Jane Smith",
-			action: "created",
-			task: "Design Database Schema",
-			timestamp: new Date(Date.now() - 15 * 60000).toISOString(),
-		},
-		{
-			id: "3",
-			user: "Bob Wilson",
-			action: "updated",
-			task: "Build Kanban Board",
-			timestamp: new Date(Date.now() - 30 * 60000).toISOString(),
-		},
-	]);
+	const [activities, setActivities] = useState([]);
+	const [users, setUsers] = useState([]);
+	const [loading, setLoading] = useState(true);
 
 	const [showTaskModal, setShowTaskModal] = useState(false);
 	const [showConflictModal, setShowConflictModal] = useState(false);
 	const [selectedTask, setSelectedTask] = useState(null);
 	const [conflictData, setConflictData] = useState(null);
 	const [activeTask, setActiveTask] = useState(null);
+	const [dragState, setDragState] = useState({
+		isDragging: false,
+		draggedTask: null,
+		originalPosition: null,
+		isRollingBack: false,
+	});
 	const [movingTaskId, setMovingTaskId] = useState(null);
 	const [dragPath, setDragPath] = useState({ from: null, to: null });
+
+	// Helper function to check if there are any tasks
+	const hasAnyTasks = () => {
+		return (
+			tasks.todo.length > 0 ||
+			tasks.inProgress.length > 0 ||
+			tasks.done.length > 0
+		);
+	};
 
 	const columns = [
 		{ id: "todo", title: "Todo", color: "#0f3460" },
 		{ id: "inProgress", title: "In Progress", color: "#533483" },
 		{ id: "done", title: "Done", color: "#00d4aa" },
 	];
+
+	// API Helper Functions
+	const apiCall = useCallback(
+		async (endpoint, options = {}) => {
+			try {
+				const response = await fetch(`${API_BASE_URL}${endpoint}`, {
+					headers: {
+						"Content-Type": "application/json",
+						Authorization: `Bearer ${token}`,
+						...options.headers,
+					},
+					...options,
+				});
+
+				if (!response.ok) {
+					throw new Error(`API Error: ${response.status}`);
+				}
+
+				return await response.json();
+			} catch (error) {
+				console.error("API call failed:", error);
+				throw error;
+			}
+		},
+		[token]
+	);
+
+	const fetchTasks = useCallback(async () => {
+		try {
+			const data = await apiCall("/tasks");
+			setTasks(data);
+		} catch (error) {
+			console.error("Failed to fetch tasks:", error);
+			addToast("Failed to refresh tasks", "error");
+		}
+	}, [apiCall, addToast]);
+
+	const fetchActivities = useCallback(async () => {
+		try {
+			const data = await apiCall("/activities");
+			setActivities(data);
+		} catch (error) {
+			console.error("Failed to fetch activities:", error);
+		}
+	}, [apiCall]);
+
+	// Load initial data
+	useEffect(() => {
+		const loadData = async () => {
+			if (!token) {
+				setLoading(false);
+				return;
+			}
+
+			setLoading(true);
+			console.log("Fetching Data from DB!!!");
+
+			try {
+				// Direct API calls to avoid dependency issues
+				const fetchWithAuth = async (endpoint) => {
+					const response = await fetch(`${API_BASE_URL}${endpoint}`, {
+						headers: {
+							"Content-Type": "application/json",
+							Authorization: `Bearer ${token}`,
+						},
+					});
+
+					if (!response.ok) {
+						throw new Error(`API Error: ${response.status}`);
+					}
+
+					return await response.json();
+				};
+
+				// Fetch tasks
+				const tasksData = await fetchWithAuth("/tasks");
+				setTasks(tasksData);
+
+				// Fetch activities
+				const activitiesData = await fetchWithAuth("/activities");
+				setActivities(activitiesData);
+
+				// Fetch users
+				const usersData = await fetchWithAuth("/users");
+				setUsers(usersData.users || []);
+
+				console.log("Data loaded successfully!");
+			} catch (error) {
+				console.error("Failed to load initial data:", error);
+				// Handle error without addToast dependency
+				console.log("Please refresh the page if data doesn't load");
+			} finally {
+				setLoading(false);
+			}
+		};
+
+		loadData();
+	}, [token]); // Only depend on token
 
 	const sensors = useSensors(
 		useSensor(PointerSensor, {
@@ -129,9 +190,25 @@ const Dashboard = ({ addToast }) => {
 		const { active } = event;
 		const activeContainer = findContainer(active.id);
 		if (activeContainer) {
-			const task = tasks[activeContainer].find((task) => task.id === active.id);
+			const task = tasks[activeContainer].find(
+				(task) => (task._id || task.id) === active.id
+			);
 			setActiveTask(task);
 			setDragPath({ from: activeContainer, to: null });
+			setDragState((prev) => ({
+				...prev,
+				isDragging: true,
+				draggedTask: task,
+				originalPosition: { container: activeContainer, task },
+			}));
+
+			// Add visual feedback
+			const taskElement = document.querySelector(
+				`[data-task-id="${active.id}"]`
+			);
+			if (taskElement) {
+				taskElement.classList.add("dragging");
+			}
 		}
 	};
 
@@ -142,17 +219,23 @@ const Dashboard = ({ addToast }) => {
 
 		// Find which column contains this task
 		for (const [columnId, columnTasks] of Object.entries(tasks)) {
-			if (columnTasks.find((task) => task.id === id)) {
+			if (columnTasks.find((task) => (task._id || task.id) === id)) {
 				return columnId;
 			}
 		}
 		return null;
 	};
 
-	const handleDragEnd = (event) => {
+	const handleDragEnd = async (event) => {
 		const { active, over } = event;
 
 		if (!over) {
+			setActiveTask(null);
+			setDragState((prev) => ({
+				...prev,
+				isDragging: false,
+				draggedTask: null,
+			}));
 			return;
 		}
 
@@ -164,95 +247,47 @@ const Dashboard = ({ addToast }) => {
 		const overContainer = findContainer(overId);
 
 		if (!activeContainer || !overContainer) {
+			setActiveTask(null);
+			setDragState((prev) => ({
+				...prev,
+				isDragging: false,
+				draggedTask: null,
+			}));
 			return;
 		}
 
 		// Find the active task
 		const activeTask = tasks[activeContainer].find(
-			(task) => task.id === activeId
+			(task) => (task._id || task.id) === activeId
 		);
 		if (!activeTask) {
+			setActiveTask(null);
+			setDragState((prev) => ({
+				...prev,
+				isDragging: false,
+				draggedTask: null,
+			}));
 			return;
 		}
 
 		if (activeContainer !== overContainer) {
-			// Moving between different columns
-			setMovingTaskId(activeId); // Track moving task
-			setDragPath({ from: activeContainer, to: overContainer });
-
-			setTasks((prev) => {
-				const activeItems = prev[activeContainer];
-				const overItems = prev[overContainer];
-
-				// Remove item from active container
-				const activeIndex = activeItems.findIndex(
-					(item) => item.id === activeId
-				);
-				const newActiveItems = [...activeItems];
-				newActiveItems.splice(activeIndex, 1);
-
-				// Add item to over container
-				let overIndex = overItems.length;
-				if (overId !== overContainer) {
-					// If dropping on a specific task, insert before it
-					overIndex = overItems.findIndex((item) => item.id === overId);
-				}
-
-				const newOverItems = [...overItems];
-				newOverItems.splice(overIndex, 0, activeTask);
-
-				const newTasks = {
-					...prev,
-					[activeContainer]: newActiveItems,
-					[overContainer]: newOverItems,
-				};
-
-				return newTasks;
-			});
-
-			// Clear moving task after animation
-			setTimeout(() => {
-				setMovingTaskId(null);
-				setDragPath({ from: null, to: null });
-			}, 500);
-
-			// Add activity for cross-column move
-			const newActivity = {
-				id: Date.now().toString(),
-				user: user.name,
-				action: "moved",
-				task: activeTask.title,
-				from: columns.find((col) => col.id === activeContainer)?.title,
-				to: columns.find((col) => col.id === overContainer)?.title,
-				timestamp: new Date().toISOString(),
-			};
-
-			setActivities((prev) => [newActivity, ...prev.slice(0, 19)]);
-			addToast(
-				`Moving "${activeTask.title}" to ${newActivity.to}...`,
-				"info",
-				2000
+			// Moving between different columns - use optimistic update
+			await performOptimisticUpdate(
+				activeId,
+				activeContainer,
+				overContainer,
+				activeTask
 			);
-
-			setTimeout(() => {
-				addToast(`Moved "${activeTask.title}" to ${newActivity.to}`, "success");
-			}, 300);
-
-			// Emit socket event
-			if (socket) {
-				socket.emit("taskMoved", {
-					taskId: activeId,
-					from: activeContainer,
-					to: overContainer,
-					user: user.name,
-				});
-			}
 		} else {
-			// Reordering within the same column
+			// Reordering within the same column - just update UI locally
 			setTasks((prev) => {
 				const items = prev[activeContainer];
-				const activeIndex = items.findIndex((item) => item.id === activeId);
-				const overIndex = items.findIndex((item) => item.id === overId);
+				const activeIndex = items.findIndex(
+					(item) => (item._id || item.id) === activeId
+				);
+				const overIndex = items.findIndex(
+					(item) => (item._id || item.id) === overId
+				);
 
 				if (activeIndex !== overIndex) {
 					const newItems = arrayMove(items, activeIndex, overIndex);
@@ -268,68 +303,185 @@ const Dashboard = ({ addToast }) => {
 
 		// Clear the active task state
 		setActiveTask(null);
-		if (!movingTaskId) {
-			setDragPath({ from: null, to: null });
+		setDragState((prev) => ({ ...prev, isDragging: false, draggedTask: null }));
+	};
+
+	const handleSmartAssign = async (taskId) => {
+		try {
+			// Use real users from the API
+			if (users.length === 0) {
+				addToast("No users available for assignment", "warning");
+				return;
+			}
+
+			// Simple assignment logic - assign to first available user
+			const bestUser = users[0];
+
+			// Update task assignment
+			const response = await apiCall(`/tasks/${taskId}`, {
+				method: "PUT",
+				body: JSON.stringify({ assignedTo: bestUser._id }),
+			});
+
+			if (response.success) {
+				// Refresh tasks to get the latest data
+				await fetchTasks();
+				await fetchActivities();
+				addToast(`Smart assigned to ${bestUser.name}`, "success");
+			}
+		} catch (error) {
+			console.error("Failed to assign task:", error);
+			addToast("Failed to assign task", "error");
 		}
 	};
 
-	const handleSmartAssign = (taskId) => {
-		// Mock smart assignment logic
-		const availableUsers = [
-			{ name: "John Doe", avatar: "JD", workload: 2 },
-			{ name: "Jane Smith", avatar: "JS", workload: 1 },
-			{ name: "Bob Wilson", avatar: "BW", workload: 3 },
-			{ name: "Alice Brown", avatar: "AB", workload: 1 },
-		];
+	const handleCreateTask = async (taskData) => {
+		try {
+			const response = await apiCall("/tasks", {
+				method: "POST",
+				body: JSON.stringify(taskData),
+			});
 
-		// Find user with least workload
-		const bestUser = availableUsers.reduce((prev, current) =>
-			prev.workload < current.workload ? prev : current
-		);
-
-		// Update task
-		const newTasks = { ...tasks };
-		Object.keys(newTasks).forEach((columnId) => {
-			const taskIndex = newTasks[columnId].findIndex(
-				(task) => task.id === taskId
-			);
-			if (taskIndex !== -1) {
-				newTasks[columnId][taskIndex].assignedTo = bestUser;
+			if (response.success) {
+				// Refresh tasks to get the latest data
+				await fetchTasks();
+				await fetchActivities();
+				addToast(`Created new task: ${response.task.title}`, "success");
 			}
-		});
-
-		setTasks(newTasks);
-		addToast(`Smart assigned to ${bestUser.name}`, "success");
+		} catch (error) {
+			console.error("Failed to create task:", error);
+			addToast("Failed to create task", "error");
+		}
 	};
 
-	const handleCreateTask = (taskData) => {
-		const newTask = {
-			id: Date.now().toString(),
-			...taskData,
-			createdAt: new Date().toISOString(),
-		};
+	const handleUpdateTask = async (taskData) => {
+		try {
+			if (!selectedTask?._id) {
+				addToast("No task selected for update", "error");
+				return;
+			}
 
-		setTasks((prev) => ({
-			...prev,
-			todo: [newTask, ...prev.todo],
-		}));
+			const response = await apiCall(`/tasks/${selectedTask._id}`, {
+				method: "PUT",
+				body: JSON.stringify(taskData),
+			});
 
-		const newActivity = {
-			id: Date.now().toString(),
-			user: user.name,
-			action: "created",
-			task: newTask.title,
-			timestamp: new Date().toISOString(),
-		};
+			if (response.success) {
+				// Refresh tasks to get the latest data
+				await fetchTasks();
+				await fetchActivities();
+				addToast(`Updated task: ${response.task.title}`, "success");
+			}
+		} catch (error) {
+			console.error("Failed to update task:", error);
+			addToast("Failed to update task", "error");
+		}
+	};
 
-		setActivities((prev) => [newActivity, ...prev.slice(0, 19)]);
-		addToast(`Created new task: ${newTask.title}`, "success");
+	// Optimistic update with rollback functionality
+	const performOptimisticUpdate = async (
+		taskId,
+		fromContainer,
+		toContainer,
+		task
+	) => {
+		// Store original state for potential rollback
+		const originalTasks = { ...tasks };
+
+		// 1. Immediately update UI (optimistic update)
+		setTasks((prev) => {
+			const activeItems = prev[fromContainer];
+			const overItems = prev[toContainer];
+
+			// Remove from source
+			const newActiveItems = activeItems.filter(
+				(item) => (item._id || item.id) !== taskId
+			);
+
+			// Add to destination
+			const updatedTask = { ...task, status: toContainer };
+			const newOverItems = [...overItems, updatedTask];
+
+			return {
+				...prev,
+				[fromContainer]: newActiveItems,
+				[toContainer]: newOverItems,
+			};
+		});
+
+		// 2. Show loading state
+		setMovingTaskId(taskId);
+		setDragPath({ from: fromContainer, to: toContainer });
+
+		try {
+			// 3. Make API request
+			const response = await fetch(`${API_BASE_URL}/tasks/${taskId}`, {
+				method: "PUT",
+				headers: {
+					"Content-Type": "application/json",
+					Authorization: `Bearer ${localStorage.getItem("token")}`,
+				},
+				body: JSON.stringify({ status: toContainer }),
+			});
+
+			if (!response.ok) {
+				throw new Error(`API Error: ${response.status}`);
+			}
+
+			// 4. Success - keep the change
+			addToast(
+				`Moved "${task.title}" to ${
+					columns.find((col) => col.id === toContainer)?.title
+				}`,
+				"success"
+			);
+
+			// Refresh activities
+			await fetchActivities();
+
+			// Emit socket event for real-time updates
+			if (socket) {
+				socket.emit("taskMoved", {
+					taskId: taskId,
+					from: fromContainer,
+					to: toContainer,
+					user: user.name,
+				});
+			}
+		} catch (error) {
+			console.error("Failed to update task:", error);
+
+			// 5. Error - rollback to original state
+			setDragState((prev) => ({ ...prev, isRollingBack: true }));
+
+			// Animate rollback
+			setTimeout(() => {
+				setTasks(originalTasks);
+				addToast(
+					`Failed to move "${task.title}". Restored to original position.`,
+					"error"
+				);
+
+				setTimeout(() => {
+					setDragState((prev) => ({ ...prev, isRollingBack: false }));
+				}, 500);
+			}, 100);
+		} finally {
+			// 6. Clear loading state
+			setTimeout(() => {
+				setMovingTaskId(null);
+				setDragPath({ from: null, to: null });
+			}, 500);
+		}
 	};
 
 	useEffect(() => {
 		if (socket) {
 			socket.on("taskUpdated", (data) => {
 				addToast(`${data.user} updated a task`, "info");
+				// Refresh tasks when receiving real-time updates
+				fetchTasks();
+				fetchActivities();
 			});
 
 			socket.on("conflictDetected", (data) => {
@@ -342,7 +494,19 @@ const Dashboard = ({ addToast }) => {
 				socket.off("conflictDetected");
 			};
 		}
-	}, [socket, addToast]);
+	}, [socket, addToast, fetchTasks, fetchActivities]);
+
+	// Show loading state
+	if (loading) {
+		return (
+			<div className="dashboard">
+				<div className="loading-container">
+					<div className="loading-spinner"></div>
+					<p>Loading your tasks...</p>
+				</div>
+			</div>
+		);
+	}
 
 	return (
 		<div className="dashboard">
@@ -374,7 +538,10 @@ const Dashboard = ({ addToast }) => {
 						className="btn btn-secondary"
 						whileHover={{ scale: 1.05 }}
 						whileTap={{ scale: 0.95 }}
-						onClick={() => setShowTaskModal(true)}
+						onClick={() => {
+							setSelectedTask(null); // Clear selected task for new task creation
+							setShowTaskModal(true);
+						}}
 					>
 						<Plus size={16} />
 						New Task
@@ -412,49 +579,116 @@ const Dashboard = ({ addToast }) => {
 			<div className="dashboard-content">
 				{/* Kanban Board */}
 				<div className="kanban-container">
-					<DndContext
-						sensors={sensors}
-						collisionDetection={closestCorners}
-						onDragStart={handleDragStart}
-						onDragEnd={handleDragEnd}
-					>
-						<div className="kanban-board">
-							{columns.map((column, index) => (
-								<motion.div
-									key={column.id}
-									initial={{ opacity: 0, y: 20 }}
-									animate={{ opacity: 1, y: 0 }}
-									transition={{ delay: index * 0.1, duration: 0.5 }}
-								>
-									<DroppableColumn
-										column={column}
-										tasks={tasks[column.id]}
-										onSmartAssign={handleSmartAssign}
-										onTaskClick={(task) => {
-											setSelectedTask(task);
-											setShowTaskModal(true);
+					{hasAnyTasks() ? (
+						<DndContext
+							sensors={sensors}
+							collisionDetection={closestCorners}
+							onDragStart={handleDragStart}
+							onDragEnd={handleDragEnd}
+						>
+							<div className="kanban-board">
+								{columns.map((column, index) => (
+									<motion.div
+										key={column.id}
+										initial={{ opacity: 0, y: 20 }}
+										animate={{ opacity: 1, y: 0 }}
+										transition={{ delay: index * 0.1, duration: 0.5 }}
+									>
+										{" "}
+										<DroppableColumn
+											column={column}
+											tasks={tasks[column.id]}
+											onSmartAssign={handleSmartAssign}
+											onTaskClick={(task) => {
+												setSelectedTask(task);
+												setShowTaskModal(true);
+											}}
+											movingTaskId={movingTaskId}
+											isSourceColumn={dragPath.from === column.id}
+											isTargetColumn={dragPath.to === column.id}
+										/>
+										{/* Add visual path line when dragging */}
+										{dragPath.from === column.id && dragPath.to && (
+											<div className="drag-path-line" />
+										)}
+									</motion.div>
+								))}
+							</div>{" "}
+							<DragOverlay>
+								{activeTask ? (
+									<motion.div
+										className="drag-overlay"
+										initial={{ scale: 1, rotate: 0, opacity: 1 }}
+										animate={{
+											scale: 1.08,
+											rotate: 3,
+											opacity: 0.95,
+											y: -10,
 										}}
-										movingTaskId={movingTaskId}
-										isSourceColumn={dragPath.from === column.id}
-										isTargetColumn={dragPath.to === column.id}
-									/>
-								</motion.div>
-							))}
-						</div>
-
-						<DragOverlay>
-							{activeTask ? (
-								<div className="drag-overlay">
-									<TaskCard
-										task={activeTask}
-										isDragging={true}
-										onSmartAssign={() => {}}
-										onClick={() => {}}
-									/>
+										transition={{
+											duration: 0.2,
+											type: "spring",
+											stiffness: 300,
+										}}
+									>
+										<div className="drag-preview-wrapper">
+											<TaskCard
+												task={activeTask}
+												isDragging={true}
+												className="drag-preview"
+												onSmartAssign={() => {}}
+												onClick={() => {}}
+											/>
+											{/* Add magical sparkles */}
+											<div className="magic-sparkles">
+												{[...Array(6)].map((_, i) => (
+													<div
+														key={i}
+														className="sparkle"
+														style={{
+															left: `${Math.random() * 100}%`,
+															top: `${Math.random() * 100}%`,
+															animationDelay: `${i * 0.1}s`,
+														}}
+													/>
+												))}
+											</div>
+										</div>
+									</motion.div>
+								) : null}
+							</DragOverlay>
+						</DndContext>
+					) : (
+						<motion.div
+							className="empty-state"
+							initial={{ opacity: 0, y: 20 }}
+							animate={{ opacity: 1, y: 0 }}
+							transition={{ duration: 0.6 }}
+						>
+							<div className="empty-state-content">
+								<div className="empty-state-icon">
+									<Plus size={48} />
 								</div>
-							) : null}
-						</DragOverlay>
-					</DndContext>
+								<h2>No tasks yet</h2>
+								<p className="text-muted">
+									Get started by creating your first task. Click the "New Task"
+									button above to begin organizing your work.
+								</p>
+								<motion.button
+									className="btn btn-primary btn-large"
+									whileHover={{ scale: 1.05 }}
+									whileTap={{ scale: 0.95 }}
+									onClick={() => {
+										setSelectedTask(null); // Clear selected task for new task creation
+										setShowTaskModal(true);
+									}}
+								>
+									<Plus size={20} />
+									Create Your First Task
+								</motion.button>
+							</div>
+						</motion.div>
+					)}
 				</div>
 
 				{/* Activity Panel */}
@@ -481,7 +715,7 @@ const Dashboard = ({ addToast }) => {
 							setShowTaskModal(false);
 							setSelectedTask(null);
 						}}
-						onSave={handleCreateTask}
+						onSave={selectedTask ? handleUpdateTask : handleCreateTask}
 					/>
 				)}
 
